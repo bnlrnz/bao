@@ -142,12 +142,12 @@ impl Game{
             Player::PLAYER1 => {
                 match direction {
                     Direction::CW => if index+1 > 15 {0} else {index+1},
-                    Direction::CCW => if index-1 < 1 {15} else {index-1},
+                    Direction::CCW => if index < 1 {15} else {index-1},
                 }
             },
             Player::PLAYER2 => {
                 match direction {
-                    Direction::CW => if index-1 < 1 {15} else {index-1},
+                    Direction::CW => if index < 1 {15} else {index-1},
                     Direction::CCW => if index+1 > 15 {0} else {index+1},
                 }
             },

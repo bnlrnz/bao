@@ -44,8 +44,8 @@ impl Game{
     fn new(direction: Direction, mode: Mode) -> Self{
         Self{
             board: Board::new(),
-            direction: direction,
-            mode: mode,
+            direction,
+            mode,
             turn: 1
         }
     }
@@ -87,10 +87,21 @@ impl Game{
         let direction = self.direction;
         let mode = self.mode;
         let current_player = self.get_current_player();
-
-        let mut index = self.read_index();
-        
         let (player, opponent) = self.get_current_player_and_oppenent_array();
+
+        let mut index= 0;
+        let mut valid_index = false;
+        while valid_index == false {
+            println!("{} enter bowl index: ", if current_player == Player::PLAYER1 {"Player 1"} else {"Player 2"});
+            
+            index = Self::read_index();
+            
+            if (0..16).contains(&index) && player[index] >= 2 {
+                valid_index = true;
+            }else{
+                print!("Please enter a valid index (0-15). Bowl must contain at least 2 stones.");
+            }
+        }
 
         let mut hand: u8 = player[index];
         player[index] = 0;
@@ -143,49 +154,24 @@ impl Game{
         }
     }
 
-    fn read_index(&self) -> usize{
+    fn read_index() -> usize{
         let mut index: Option<usize> = None;
         while index == None {
-            println!("{} enter bowl index: ", if self.turn % 2 == 1 {"Player 1"} else {"Player 2"});
             let mut input_text = String::new();
             io::stdin()
                 .read_line(&mut input_text)
                 .expect("failed to read from stdin");
             
             let trimmed = input_text.trim();
-            index = match trimmed.parse::<usize>() {
-                Ok(i) => Some(i),
-                Err(..) => None,
+            match trimmed.parse::<usize>() {
+                Ok(i) => return i,
+                Err(..) => {
+                    println!("Please enter a valid number!");
+                    index = None
+                },
             };
-
-            if index == None{
-                println!("Please enter a valid number!");
-                continue;
-            }
-
-            if index.unwrap() > 15 {
-                println!("Please enter a valid number (0-15)!");
-                index = None;
-                continue;
-            }
-
-            match self.get_current_player() {
-                Player::PLAYER1 => {
-                    if self.board.player1[index.unwrap()] < 2{
-                        println!("Player 1: Choose a bowl with at least 2 stones!");
-                        index = None
-                    }
-                },
-                Player::PLAYER2 => {
-                    if self.board.player2[index.unwrap()] < 2{
-                        println!("Player 2: Choose a bowl with at least 2 stones!");
-                        index = None
-                    }
-                },
-            }
         }
-
-        return index.unwrap();
+        index.unwrap()
     }
 
     fn print_board(&self){

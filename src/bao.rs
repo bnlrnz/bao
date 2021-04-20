@@ -26,7 +26,7 @@ pub struct Player {
     name: &'static str,
     agent: PlayerAgent,
     board_half: [u8; 16],
-    get_index_fn: fn() -> usize,
+    choose_bowl_index: fn() -> usize,
 }
 
 impl Player {
@@ -35,8 +35,18 @@ impl Player {
             name,
             agent,
             board_half: [2; 16],
-            get_index_fn: Self::read_index,
+            choose_bowl_index: Self::read_index,
         }
+    }
+
+    #[allow(unused)]
+    pub fn set_choose_bowl_index(&mut self, func: fn() -> usize) {
+        self.choose_bowl_index = func;
+    }
+
+    #[allow(unused)]
+    pub fn read_board(&self) -> &[u8; 16] {
+        &self.board_half
     }
 
     fn read_index() -> usize {
@@ -98,7 +108,7 @@ impl Game {
     }
 
     #[inline(always)]
-    fn get_current_and_opponent_player(&mut self) -> (&mut Player, &mut Player) {
+    fn get_mut_current_and_opponent_player(&mut self) -> (&mut Player, &mut Player) {
         match self.turn % 2 {
             1 => (&mut self.player1, &mut self.player2),
             0 => (&mut self.player2, &mut self.player1),
@@ -120,14 +130,14 @@ impl Game {
         let direction = self.direction;
         let mode = self.mode;
 
-        let (player, opponent) = self.get_current_and_opponent_player();
+        let (player, opponent) = self.get_mut_current_and_opponent_player();
 
         let mut index = 0;
         let mut valid_index = false;
-        while valid_index == false {
+        while !valid_index {
             println!("{} enter bowl index: ", player.name);
 
-            index = (player.get_index_fn)();
+            index = (player.choose_bowl_index)();
 
             if (0..16).contains(&index) && player.board_half[index] >= 2 {
                 valid_index = true;
@@ -141,17 +151,16 @@ impl Game {
 
         while hand > 0 {
             index = Self::next_index(index, direction, turn);
-            hand = hand - 1;
-            player.board_half[index] = player.board_half[index] + 1;
+            hand -= 1;
+            player.board_half[index] += 1;
 
             if hand == 0 && player.board_half[index] >= 2 {
                 hand = player.board_half[index];
                 player.board_half[index] = 0;
 
                 // steal from opponent
-                if index >= 8 && index <= 15 {
-                    hand = hand
-                        + match mode {
+                if (8..=15).contains(&index) {
+                    hand += match mode {
                             Mode::EASY => {
                                 let steal = opponent.board_half[index];
                                 opponent.board_half[index] = 0;
@@ -220,20 +229,20 @@ impl Game {
         for i in 0..8 {
             print!(" {:2} |", i);
         }
-        println!("");
+        println!();
         println!("-----------------------------------------");
         print!("|");
         for i in 0..8 {
             print!(" {:2} |", self.player2.board_half[i]);
         }
-        println!("");
+        println!();
 
         println!("-----------------------------------------");
         print!("|");
         for i in (8..16).rev() {
             print!(" {:2} |", i);
         }
-        println!("");
+        println!();
         println!("-----------------------------------------");
         print!("|");
         for i in (8..16).rev() {
@@ -254,19 +263,19 @@ impl Game {
         for i in (8..16).rev() {
             print!(" {:2} |", i);
         }
-        println!("");
+        println!();
         println!("-----------------------------------------");
         print!("|");
         for i in 0..8 {
             print!(" {:2} |", self.player1.board_half[i]);
         }
-        println!("");
+        println!();
         println!("-----------------------------------------");
         print!("|");
         for i in 0..8 {
             print!(" {:2} |", i);
         }
-        println!("");
+        println!();
         println!(
             "           {:2}Player 1{:2}",
             if self.turn % 2 == 1 { "->" } else { "" },
@@ -292,16 +301,16 @@ impl Game {
 
         match self.mode {
             Mode::EASY => {
-                for bowl in 8..15 {
-                    if current_player_board[bowl] != 0 {
+                for bowl in current_player_board.iter().take(15).skip(8) {
+                    if bowl != &0 {
                         return false;
                     }
                 }
                 true
             }
             Mode::NORMAL => {
-                for bowl in 0..15 {
-                    if current_player_board[bowl] != 0 {
+                for bowl in current_player_board.iter().take(15) {
+                    if bowl != &0 {
                         return false;
                     }
                 }

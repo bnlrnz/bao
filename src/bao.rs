@@ -22,11 +22,16 @@ pub enum PlayerAgent {
     AI,
 }
 
+pub enum PlayerPosition {
+    FIRST,
+    SECOND,
+}
+
 pub struct Player {
     name: &'static str,
     agent: PlayerAgent,
     board_half: [u8; 16],
-    choose_bowl_index: fn() -> usize,
+    pub choose_bowl_index: Box<dyn Fn() -> usize>,
 }
 
 impl Player {
@@ -35,12 +40,12 @@ impl Player {
             name,
             agent,
             board_half: [2; 16],
-            choose_bowl_index: Self::read_index,
+            choose_bowl_index: Box::new(Self::read_index),
         }
     }
 
     #[allow(unused)]
-    pub fn set_choose_bowl_index(&mut self, func: fn() -> usize) {
+    pub fn set_choose_bowl_index(&mut self, func: Box<dyn Fn() -> usize>) {
         self.choose_bowl_index = func;
     }
 
@@ -71,8 +76,8 @@ impl Player {
 }
 
 pub struct Game {
-    direction: Direction,
-    mode: Mode,
+    pub direction: Direction,
+    pub mode: Mode,
     turn: usize,
     player1: Player,
     player2: Player,
@@ -89,26 +94,24 @@ impl Game {
         }
     }
 
+    #[allow(unused)]
     pub fn run(&mut self) {
         while self.move_possible() && !self.game_over() {
             if self.get_current_player().agent == PlayerAgent::HUMAN {
                 self.print_board();
             }
-            self.make_move();
-            self.turn += 1;
+            self.make_move(self.pick_index());
+            self.next_turn();
         }
 
-        // the current player could not make a move or its loosing condition was met
-        // therefore we skip the player to display the winner
-        self.turn += 1;
-        print!(
+        println!(
             "Congratulation {}. You won!",
-            self.get_current_player().name
+            self.get_winner().0.name
         );
     }
 
     #[inline(always)]
-    fn get_mut_current_and_opponent_player(&mut self) -> (&mut Player, &mut Player) {
+    pub fn get_mut_current_and_opponent_player(&mut self) -> (&mut Player, &mut Player) {
         match self.turn % 2 {
             1 => (&mut self.player1, &mut self.player2),
             0 => (&mut self.player2, &mut self.player1),
@@ -117,40 +120,76 @@ impl Game {
     }
 
     #[inline(always)]
-    fn get_current_player(&self) -> &Player {
+    pub fn next_turn(&mut self) {
+        self.turn += 1;
+    }
+
+    #[inline(always)]
+    pub fn current_player_position(&self) -> PlayerPosition {
         match self.turn % 2 {
-            1 => &self.player1,
-            0 => &self.player2,
+            1 => PlayerPosition::FIRST,
+            0 => PlayerPosition::SECOND,
             _ => unreachable!(),
         }
     }
 
-    fn make_move(&mut self) {
-        let turn = self.turn;
-        let direction = self.direction;
-        let mode = self.mode;
+    #[inline(always)]
+    pub fn get_current_player(&self) -> &Player {
+        match self.current_player_position() {
+            PlayerPosition::FIRST => &self.player1,
+            PlayerPosition::SECOND => &self.player2,
+        }
+    }
 
-        let (player, opponent) = self.get_mut_current_and_opponent_player();
+    #[inline(always)]
+    pub fn get_opponent_player(&self) -> &Player {
+        match self.current_player_position() {
+            PlayerPosition::SECOND => &self.player1,
+            PlayerPosition::FIRST => &self.player2,
+        }
+    }
+
+    #[allow(unused)]
+    fn pick_index(&self) -> usize {
+        let player = self.get_current_player();
 
         let mut index = 0;
         let mut valid_index = false;
         while !valid_index {
-            println!("{} enter bowl index: ", player.name);
+            if player.agent == PlayerAgent::HUMAN {
+                println!("{} enter bowl index: ", player.name);
+            }
 
+            // determine which bowl to play
             index = (player.choose_bowl_index)();
 
             if (0..16).contains(&index) && player.board_half[index] >= 2 {
                 valid_index = true;
             } else {
-                print!("Please enter a valid index (0-15). Bowl must contain at least 2 stones.");
+                if player.agent == PlayerAgent::HUMAN {
+                    println!(
+                        "Please enter a valid index (0-15). Bowl must contain at least 2 stones."
+                    );
+                }
             }
         }
+        index
+    }
+
+    pub fn make_move(&mut self, start_index: usize){
+        let mut index = start_index;
+        let direction = self.direction;
+        let mode = self.mode;
+
+        let (player, opponent) = self.get_mut_current_and_opponent_player();
 
         let mut hand: u8 = player.board_half[index];
         player.board_half[index] = 0;
 
+        //println!("{} choose index {}", player.name, index);
+
         while hand > 0 {
-            index = Self::next_index(index, direction, turn);
+            index = Self::next_index(index, direction);
             hand -= 1;
             player.board_half[index] += 1;
 
@@ -160,92 +199,111 @@ impl Game {
 
                 // steal from opponent
                 if (8..=15).contains(&index) {
+                    let opponent_index = (15 - index) + 8;
+
                     hand += match mode {
-                            Mode::EASY => {
-                                let steal = opponent.board_half[index];
-                                opponent.board_half[index] = 0;
-                                steal
-                            }
-                            Mode::NORMAL => {
-                                let steal =
-                                    opponent.board_half[index] + opponent.board_half[index - 7];
-                                opponent.board_half[index] = 0;
-                                opponent.board_half[index - 7] = 0;
-                                steal
-                            }
+                        Mode::EASY => {
+                            let steal = opponent.board_half[opponent_index];
+                            opponent.board_half[opponent_index] = 0;
+                            steal
                         }
+                        Mode::NORMAL => {
+                            let opponent_2nd_index = 15 - opponent_index;
+                            let steal = opponent.board_half[opponent_index]
+                                + opponent.board_half[opponent_2nd_index];
+                            opponent.board_half[opponent_index] = 0;
+                            opponent.board_half[opponent_2nd_index] = 0;
+                            steal
+                        }
+                    };
+                    
+                    // check win condition after steal!
+                    if Self::check_player_lost(mode, opponent){
+                        return;
+                    }
                 }
             }
         }
     }
 
     #[inline(always)]
-    fn next_index(index: usize, direction: Direction, turn: usize) -> usize {
-        // I should use a ring for each player
-        match turn % 2 {
-            1 => match direction {
-                Direction::CW => {
-                    if index + 1 > 15 {
-                        0
-                    } else {
-                        index + 1
+    fn check_player_lost(mode: Mode, player: &Player) -> bool {
+        match mode {
+            Mode::EASY => {
+                for bowl in player.board_half.iter().take(16).skip(8) {
+                    if bowl != &0 {
+                        return false;
                     }
                 }
-                Direction::CCW => {
-                    if index < 1 {
-                        15
-                    } else {
-                        index - 1
+                true
+            }
+            Mode::NORMAL => {
+                for bowl in player.board_half.iter().take(16) {
+                    if bowl != &0 {
+                        return false;
                     }
                 }
-            },
-            0 => match direction {
-                Direction::CW => {
-                    if index < 1 {
-                        15
-                    } else {
-                        index - 1
-                    }
-                }
-                Direction::CCW => {
-                    if index + 1 > 15 {
-                        0
-                    } else {
-                        index + 1
-                    }
-                }
-            },
-            _ => unreachable!(),
+                true
+            }
         }
     }
 
-    fn print_board(&self) {
+    #[allow(unused)]
+    #[inline(always)]
+    pub fn get_winner(&self) -> (&Player, PlayerPosition) {
+        if Self::check_player_lost(self.mode, &self.player1) {
+            return (&self.player2, PlayerPosition::SECOND);
+        }
+        (&self.player1, PlayerPosition::FIRST)
+    }
+
+    #[inline(always)]
+    fn next_index(index: usize, direction: Direction) -> usize {
+        match direction {
+            Direction::CW => {
+                if index < 1 {
+                    15
+                } else {
+                    index - 1
+                }
+            }
+            Direction::CCW => {
+                if index + 1 > 15 {
+                    0
+                } else {
+                    index + 1
+                }
+            }
+        }
+    }
+
+    pub fn print_board(&self) {
         println!(
             "           {:2}Player 2{:2}",
             if self.turn % 2 == 0 { "->" } else { "" },
             if self.turn % 2 == 0 { "<-" } else { "" },
         );
         print!("|");
-        for i in 0..8 {
+        for i in (0..8).rev() {
             print!(" {:2} |", i);
         }
         println!();
         println!("-----------------------------------------");
         print!("|");
-        for i in 0..8 {
+        for i in (0..8).rev() {
             print!(" {:2} |", self.player2.board_half[i]);
         }
         println!();
 
         println!("-----------------------------------------");
         print!("|");
-        for i in (8..16).rev() {
+        for i in 8..16 {
             print!(" {:2} |", i);
         }
         println!();
         println!("-----------------------------------------");
         print!("|");
-        for i in (8..16).rev() {
+        for i in 8..16 {
             print!(" {:2} |", self.player2.board_half[i]);
         }
         println!(" Stones: {}", self.player2.board_half.iter().sum::<u8>());
@@ -283,25 +341,27 @@ impl Game {
         );
     }
 
-    fn move_possible(&self) -> bool {
+    pub fn move_possible(&self) -> bool {
         for bowl in self.get_current_player().board_half.iter() {
             if bowl >= &2 {
                 return true;
             }
         }
-        print!(
-            "{}: no possible moveds left :(",
-            self.get_current_player().name
-        );
+        if self.get_current_player().agent == PlayerAgent::HUMAN {
+            println!(
+                "{}: no possible moveds left :(",
+                self.get_current_player().name
+            );
+        }
         false
     }
 
-    fn game_over(&self) -> bool {
+    pub fn game_over(&self) -> bool {
         let current_player_board = self.get_current_player().board_half;
 
         match self.mode {
             Mode::EASY => {
-                for bowl in current_player_board.iter().take(15).skip(8) {
+                for bowl in current_player_board.iter().take(16).skip(8) {
                     if bowl != &0 {
                         return false;
                     }
@@ -309,7 +369,7 @@ impl Game {
                 true
             }
             Mode::NORMAL => {
-                for bowl in current_player_board.iter().take(15) {
+                for bowl in current_player_board.iter().take(16) {
                     if bowl != &0 {
                         return false;
                     }

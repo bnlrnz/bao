@@ -8,6 +8,3 @@ edition = "2018"
 
 [dependencies]
 rand = "0.8.3"
-neat-environment = {path = "neat-rs/environment"}
-neat-core = {path = "neat-rs/core"}
-neat-export = {path = "neat-rs/export"}

@@ -1,6 +1,8 @@
 use rand::Rng;
 use std::io;
 use std::print;
+use std::sync::Arc;
+use std::thread::{JoinHandle, spawn};
 
 #[derive(Copy, Clone)]
 #[allow(unused)]
@@ -32,7 +34,7 @@ pub struct Player {
     name: &'static str,
     agent: PlayerAgent,
     board_half: [u8; 16],
-    pub choose_bowl_index: Box<dyn Fn() -> usize>,
+    pub choose_bowl_index: Box<dyn Fn() -> usize + Send + Sync>,
 }
 
 impl Player {
@@ -49,7 +51,7 @@ impl Player {
     }
 
     #[allow(unused)]
-    pub fn set_choose_bowl_index(&mut self, func: Box<dyn Fn() -> usize>) {
+    pub fn set_choose_bowl_index(&mut self, func: Box<dyn Fn() -> usize + Send + Sync>) {
         self.choose_bowl_index = func;
     }
 
@@ -103,7 +105,7 @@ impl Game {
     }
 
     #[allow(unused)]
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> (&Player, PlayerPosition) {
         while self.move_possible() && !self.game_over() {
             if self.get_current_player().agent == PlayerAgent::Human {
                 self.print_board();
@@ -112,7 +114,8 @@ impl Game {
             self.next_turn();
         }
 
-        println!("Congratulation {}. You won!", self.get_winner().0.name);
+        //println!("Congratulation {}. You won!", self.get_winner().0.name);
+        self.get_winner()
     }
 
     #[inline(always)]

@@ -1,8 +1,6 @@
 use rand::Rng;
 use std::io;
 use std::print;
-use std::sync::Arc;
-use std::thread::{JoinHandle, spawn};
 
 #[derive(Copy, Clone)]
 #[allow(unused)]
@@ -34,7 +32,7 @@ pub struct Player {
     name: &'static str,
     agent: PlayerAgent,
     board_half: [u8; 16],
-    pub choose_bowl_index: Box<dyn Fn() -> usize + Send + Sync>,
+    choose_bowl_index: Box<dyn Fn(&[u8;16],&[u8;16],Direction) -> usize>,
 }
 
 impl Player {
@@ -51,7 +49,7 @@ impl Player {
     }
 
     #[allow(unused)]
-    pub fn set_choose_bowl_index(&mut self, func: Box<dyn Fn() -> usize + Send + Sync>) {
+    pub fn set_choose_bowl_index(&mut self, func: Box<dyn Fn(&[u8;16],&[u8;16],Direction) -> usize>) {
         self.choose_bowl_index = func;
     }
 
@@ -60,11 +58,11 @@ impl Player {
         &self.board_half
     }
 
-    fn random_index() -> usize {
+    fn random_index(_: &[u8;16], _: &[u8;16], _: Direction) -> usize {
         rand::thread_rng().gen_range(0..16)
     }
 
-    fn read_index() -> usize {
+    fn read_index(_: &[u8;16], _: &[u8;16], _: Direction) -> usize {
         let mut index: Option<usize> = None;
         while index == None {
             let mut input_text = String::new();
@@ -162,6 +160,7 @@ impl Game {
     #[allow(unused)]
     fn pick_index(&self) -> usize {
         let player = self.get_current_player();
+        let opponent = self.get_opponent_player();
 
         let mut index = 0;
         let mut valid_index = false;
@@ -171,7 +170,7 @@ impl Game {
             }
 
             // determine which bowl to play
-            index = (player.choose_bowl_index)();
+            index = (player.choose_bowl_index)(player.read_board(), opponent.read_board(), self.direction);
 
             if (0..16).contains(&index) && player.board_half[index] >= 2 {
                 valid_index = true;

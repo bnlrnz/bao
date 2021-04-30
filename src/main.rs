@@ -1,5 +1,4 @@
 mod bao;
-use Box::new;
 use bao::*;
 
 use std::usize;
@@ -56,7 +55,7 @@ impl Environment for GameEnvironment {
                 Direction::CCW => {1.0}
             });
 
-            organism.activate(input, output);
+            organism.activate(&input,&mut output);
 
                 // Use enumerate to get the index
             let mut iter = output.iter().enumerate();

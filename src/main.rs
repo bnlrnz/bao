@@ -1,10 +1,11 @@
 mod bao;
-use bao::*;
+use bao::{RandomAgent, HumanAgent, Direction, Game, Mode, Player};
 
 use rustneat::{Organism, Environment, Population};
 
 fn random_ai_game() {
     let mut results = [0; 2];
+
     for _ in 0..100000 {
         let winner_tag = Game::new(
             Direction::CW,

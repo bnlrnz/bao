@@ -1,5 +1,5 @@
 mod bao;
-use bao::*;
+use bao::{RandomAgent, HumanAgent, TrainingAgent, Direction, Game, Mode, Player};
 
 use rustneat::{Environment, Organism, Population};
 

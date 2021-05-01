@@ -46,7 +46,7 @@ impl Environment for GameEnvironment {
 
             let org = Arc::new(Mutex::new(organism.clone()));
             game.player2.set_choose_bowl_index(Arc::new(move |own, opp, dir|{
-                let output: [f64; 16] = [0.0; 16];
+                let mut output: [f64; 16] = [0.0; 16];
                 let mut input: Vec<f64> = Vec::new();
 
                 for b in own{
@@ -62,24 +62,37 @@ impl Environment for GameEnvironment {
 
                 org.lock().unwrap().activate(&input,&mut output.to_vec());
 
-                // Use enumerate to get the index
-                let mut iter = output.iter().enumerate();
-                // we get the first entry
-                let init = iter.next().ok_or("Need at least one input").unwrap();
-                // we process the rest
-                let result = iter.try_fold(init, |acc, x| {
-                    // return None if x is NaN
-                    let cmp = x.1.partial_cmp(acc.1)?;
-                    // if x is greater the acc
-                    let max = if let std::cmp::Ordering::Greater = cmp {
-                        x
-                    } else {
-                        acc
-                    };
-                    Some(max)
-                });
+                let mut valid_index = false;
+                let mut output: [f64; 16] = output.clone();
+                let mut index = 0;
+                while !valid_index{
+                    // Use enumerate to get the index
+                    let mut iter = output.iter().enumerate();
+                    // we get the first entry
+                    let init = iter.next().ok_or("Need at least one input").unwrap();
+                    // we process the rest
+                    let result = iter.try_fold(init, |acc, x| {
+                        // return None if x is NaN
+                        let cmp = x.1.partial_cmp(acc.1)?;
+                        // if x is greater the acc
+                        let max = if let std::cmp::Ordering::Greater = cmp {
+                            x
+                        } else {
+                            acc
+                        };
+                        Some(max)
+                    });
 
-                result.unwrap().0
+                    index = result.unwrap().0;
+
+                    if own[index] < 2{
+                        output[index] = -999.0;
+                        continue;
+                    }
+                    valid_index = true;
+                }
+                
+                index
             }));
 
             match game.run().1 {
@@ -88,6 +101,7 @@ impl Environment for GameEnvironment {
             };
         }
 
+        println!("Fitness: {}", fitness);
         fitness
     }
 }

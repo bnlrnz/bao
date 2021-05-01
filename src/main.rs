@@ -1,108 +1,64 @@
 mod bao;
 use bao::*;
 
-use std::usize;
-use std::sync::{Arc, Mutex};
+use rustneat::{Environment, Organism, Population};
 
-extern crate rustneat;
-use rustneat::Environment;
-use rustneat::Organism;
-use rustneat::Population;
+fn random_ai_game() {
+    let mut results = [0; 2];
 
-fn random_ai_game(){
-    let mut first: usize = 0;
-    let mut second: usize = 0;
     for _ in 0..100000 {
-        let mut game = Game::new(
+        let winner_tag = Game::new(
             Direction::CW,
             Mode::Easy,
-            Player::new("Player 1", PlayerAgent::AiRandom),
-            Player::new("Player 2", PlayerAgent::AiRandom),
-        );
-    
-        match game.run().1 {
-            PlayerPosition::First => {first+=1}
-            PlayerPosition::Second => {second+=1}
-        }
+            Player::new("Player 1", 0),
+            Player::new("Player 2", 1),
+        )
+        .play(&mut RandomAgent::default(), &mut RandomAgent::default())
+        .winner
+        .tag();
+
+        results[winner_tag] += 1;
     }
 
-    println!("First Player: {}", first);
-    println!("Second Player: {}", second);
+    println!("First Player: {}", results[0]);
+    println!("Second Player: {}", results[1]);
+}
+
+fn human_game() {
+    let winner = Game::new(
+        Direction::CW,
+        Mode::Easy,
+        Player::new("Player 1", 0),
+        Player::new("Player 2", 1),
+    )
+    .play(&mut HumanAgent::default(), &mut RandomAgent::default())
+    .winner;
+
+    println!("Winner: {}", winner.name());
 }
 
 struct GameEnvironment;
 
 impl Environment for GameEnvironment {
     fn test(&self, organism: &mut Organism) -> f64 {
-        let mut fitness = 0.0;
-
-        for _ in 0..100{
-            let mut game = Game::new(
-                Direction::CW,
-                Mode::Easy,
-                Player::new("Player 1", PlayerAgent::AiRandom),
-                Player::new("Player 2", PlayerAgent::AiRandom),
-            );
-
-            let org = Arc::new(Mutex::new(organism.clone()));
-            game.player2.set_choose_bowl_index(Arc::new(move |own, opp, dir|{
-                let mut output: [f64; 16] = [0.0; 16];
-                let mut input: Vec<f64> = Vec::new();
-
-                for b in own{
-                    input.push(*b as f64);
-                }
-                for b in opp{
-                    input.push(*b as f64);
-                }
-                input.push(match dir {
-                    Direction::CW => {0.0}
-                    Direction::CCW => {1.0}
-                });
-
-                org.lock().unwrap().activate(&input,&mut output.to_vec());
-
-                let mut valid_index = false;
-                let mut output: [f64; 16] = output.clone();
-                let mut index = 0;
-                while !valid_index{
-                    // Use enumerate to get the index
-                    let mut iter = output.iter().enumerate();
-                    // we get the first entry
-                    let init = iter.next().ok_or("Need at least one input").unwrap();
-                    // we process the rest
-                    let result = iter.try_fold(init, |acc, x| {
-                        // return None if x is NaN
-                        let cmp = x.1.partial_cmp(acc.1)?;
-                        // if x is greater the acc
-                        let max = if let std::cmp::Ordering::Greater = cmp {
-                            x
-                        } else {
-                            acc
-                        };
-                        Some(max)
-                    });
-
-                    index = result.unwrap().0;
-
-                    if own[index] < 2{
-                        output[index] = -999.0;
-                        continue;
-                    }
-                    valid_index = true;
-                }
-                
-                index
-            }));
-
-            match game.run().1 {
-                PlayerPosition::First => {fitness += 0.0;}
-                PlayerPosition::Second => {fitness += 1.0;}
-            };
+        if Game::new(
+            Direction::CW,
+            Mode::Easy,
+            Player::new("Player 1", 0),
+            Player::new("Player 2", 1),
+        )
+        .play(
+            &mut RandomAgent::default(),
+            &mut TrainingAgent::new(organism),
+        )
+        .winner
+        .tag()
+            == 1
+        {
+            1.0
+        } else {
+            0.0
         }
-
-        println!("Fitness: {}", fitness);
-        fitness
     }
 }
 
@@ -130,6 +86,10 @@ fn main() {
 
     if param == "random" {
         random_ai_game();
+    }
+
+    if param == "human" {
+        human_game();
     }
 
     if param == "train" {

@@ -1,7 +1,6 @@
 use rand::Rng;
 use std::io;
 use std::print;
-use std::sync::Arc;
 
 #[derive(Copy, Clone)]
 #[allow(unused)]
@@ -22,6 +21,7 @@ pub enum Mode {
 pub enum PlayerAgent {
     Human,
     AiRandom,
+    AiTraining,
 }
 
 pub enum PlayerPosition {
@@ -33,7 +33,7 @@ pub struct Player {
     name: &'static str,
     agent: PlayerAgent,
     board_half: [u8; 16],
-    choose_bowl_index: Arc<dyn Fn(&[u8;16],&[u8;16],Direction) -> usize>,
+    choose_bowl_index: Box<dyn Fn(&[u8; 16], &[u8; 16], Direction) -> usize>,
 }
 
 impl Player {
@@ -43,14 +43,18 @@ impl Player {
             agent,
             board_half: [2; 16],
             choose_bowl_index: match agent {
-                PlayerAgent::Human => Arc::new(Self::read_index),
-                PlayerAgent::AiRandom => Arc::new(Self::random_index),
+                PlayerAgent::Human => Box::new(Self::read_index),
+                PlayerAgent::AiRandom => Box::new(Self::random_index),
+                PlayerAgent::AiTraining => Box::new(Self::random_index),
             },
         }
     }
 
     #[allow(unused)]
-    pub fn set_choose_bowl_index(&mut self, func: Arc<dyn Fn(&[u8;16],&[u8;16],Direction) -> usize>) {
+    pub fn set_choose_bowl_index(
+        &mut self,
+        func: Box<dyn Fn(&[u8; 16], &[u8; 16], Direction) -> usize>,
+    ) {
         self.choose_bowl_index = func;
     }
 
@@ -59,11 +63,11 @@ impl Player {
         &self.board_half
     }
 
-    fn random_index(_: &[u8;16], _: &[u8;16], _: Direction) -> usize {
+    fn random_index(_: &[u8; 16], _: &[u8; 16], _: Direction) -> usize {
         rand::thread_rng().gen_range(0..16)
     }
 
-    fn read_index(_: &[u8;16], _: &[u8;16], _: Direction) -> usize {
+    fn read_index(_: &[u8; 16], _: &[u8; 16], _: Direction) -> usize {
         let mut index: Option<usize> = None;
         while index == None {
             let mut input_text = String::new();
@@ -109,7 +113,13 @@ impl Game {
             if self.get_current_player().agent == PlayerAgent::Human {
                 self.print_board();
             }
-            self.make_move(self.pick_index());
+            let index = self.pick_index();
+
+            if self.get_current_player().agent == PlayerAgent::AiTraining && index == 42{
+                break;
+            }
+
+            self.make_move(index);
             self.next_turn();
         }
 
@@ -171,12 +181,19 @@ impl Game {
             }
 
             // determine which bowl to play
-            index = (player.choose_bowl_index)(player.read_board(), opponent.read_board(), self.direction);
+            index = (player.choose_bowl_index)(
+                player.read_board(),
+                opponent.read_board(),
+                self.direction,
+            );
 
             if (0..16).contains(&index) && player.board_half[index] >= 2 {
                 valid_index = true;
             } else if player.agent == PlayerAgent::Human {
                 println!("Please enter a valid index (0-15). Bowl must contain at least 2 stones.");
+            } else if player.agent == PlayerAgent::AiTraining {
+                //println!("Ai has choosen invalid index");
+                return 42;
             }
         }
         index

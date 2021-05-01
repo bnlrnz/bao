@@ -2,6 +2,7 @@ mod bao;
 use bao::*;
 
 use std::usize;
+use std::sync::{Arc, Mutex};
 
 extern crate rustneat;
 use rustneat::Environment;
@@ -33,54 +34,61 @@ struct GameEnvironment;
 
 impl Environment for GameEnvironment {
     fn test(&self, organism: &mut Organism) -> f64 {
-        let mut game = Game::new(
-            Direction::CW,
-            Mode::Easy,
-            Player::new("Player 1", PlayerAgent::AiRandom),
-            Player::new("Player 2", PlayerAgent::AiRandom),
-        );
+        let mut fitness = 0.0;
 
-        game.player2.set_choose_bowl_index(Box::new(|own, opp, dir|{
-            let mut output = vec![16f64];
-            let mut input: Vec<f64> = Vec::new();
+        for _ in 0..100{
+            let mut game = Game::new(
+                Direction::CW,
+                Mode::Easy,
+                Player::new("Player 1", PlayerAgent::AiRandom),
+                Player::new("Player 2", PlayerAgent::AiRandom),
+            );
 
-            for b in own{
-                input.push(*b as f64);
-            }
-            for b in opp{
-                input.push(*b as f64);
-            }
-            input.push(match dir {
-                Direction::CW => {0.0}
-                Direction::CCW => {1.0}
-            });
+            let org = Arc::new(Mutex::new(organism.clone()));
+            game.player2.set_choose_bowl_index(Arc::new(move |own, opp, dir|{
+                let output: [f64; 16] = [0.0; 16];
+                let mut input: Vec<f64> = Vec::new();
 
-            organism.activate(&input,&mut output);
+                for b in own{
+                    input.push(*b as f64);
+                }
+                for b in opp{
+                    input.push(*b as f64);
+                }
+                input.push(match dir {
+                    Direction::CW => {0.0}
+                    Direction::CCW => {1.0}
+                });
+
+                org.lock().unwrap().activate(&input,&mut output.to_vec());
 
                 // Use enumerate to get the index
-            let mut iter = output.iter().enumerate();
-            // we get the first entry
-            let init = iter.next().ok_or("Need at least one input").unwrap();
-            // we process the rest
-            let result = iter.try_fold(init, |acc, x| {
-                // return None if x is NaN
-                let cmp = x.1.partial_cmp(acc.1)?;
-                // if x is greater the acc
-                let max = if let std::cmp::Ordering::Greater = cmp {
-                    x
-                } else {
-                    acc
-                };
-                Some(max)
-            });
+                let mut iter = output.iter().enumerate();
+                // we get the first entry
+                let init = iter.next().ok_or("Need at least one input").unwrap();
+                // we process the rest
+                let result = iter.try_fold(init, |acc, x| {
+                    // return None if x is NaN
+                    let cmp = x.1.partial_cmp(acc.1)?;
+                    // if x is greater the acc
+                    let max = if let std::cmp::Ordering::Greater = cmp {
+                        x
+                    } else {
+                        acc
+                    };
+                    Some(max)
+                });
 
-            result.unwrap().0
-        }));
+                result.unwrap().0
+            }));
 
-        match game.run().1 {
-            PlayerPosition::First => {0.0}
-            PlayerPosition::Second => {1.0}
+            match game.run().1 {
+                PlayerPosition::First => {fitness += 0.0;}
+                PlayerPosition::Second => {fitness += 1.0;}
+            };
         }
+
+        fitness
     }
 }
 
@@ -94,7 +102,7 @@ fn train() {
         population.evaluate_in(&mut environment);
         for organism in &population.get_organisms() {
             println!("Fitness: {}", organism.fitness);
-            if organism.fitness > 10.0 {
+            if organism.fitness > 75.0 {
                 champion = Some(organism.clone());
             }
         }

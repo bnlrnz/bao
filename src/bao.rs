@@ -1,6 +1,7 @@
 use rand::Rng;
 use std::io;
 use std::print;
+use std::sync::Arc;
 
 #[derive(Copy, Clone)]
 #[allow(unused)]
@@ -32,7 +33,7 @@ pub struct Player {
     name: &'static str,
     agent: PlayerAgent,
     board_half: [u8; 16],
-    choose_bowl_index: Box<dyn Fn(&[u8;16],&[u8;16],Direction) -> usize>,
+    choose_bowl_index: Arc<dyn Fn(&[u8;16],&[u8;16],Direction) -> usize>,
 }
 
 impl Player {
@@ -42,14 +43,14 @@ impl Player {
             agent,
             board_half: [2; 16],
             choose_bowl_index: match agent {
-                PlayerAgent::Human => Box::new(Self::read_index),
-                PlayerAgent::AiRandom => Box::new(Self::random_index),
+                PlayerAgent::Human => Arc::new(Self::read_index),
+                PlayerAgent::AiRandom => Arc::new(Self::random_index),
             },
         }
     }
 
     #[allow(unused)]
-    pub fn set_choose_bowl_index(&mut self, func: Box<dyn Fn(&[u8;16],&[u8;16],Direction) -> usize>) {
+    pub fn set_choose_bowl_index(&mut self, func: Arc<dyn Fn(&[u8;16],&[u8;16],Direction) -> usize>) {
         self.choose_bowl_index = func;
     }
 

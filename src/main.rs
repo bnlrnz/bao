@@ -1,7 +1,7 @@
 mod bao;
 use bao::{RandomAgent, HumanAgent, TrainingAgent, Direction, Game, Mode, Player};
 
-use rustneat::{Organism, Environment, Population};
+use rustneat::{Environment, Organism, Population};
 
 fn random_ai_game() {
     let mut results = [0; 2];

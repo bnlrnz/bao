@@ -4,14 +4,14 @@ use std::iter;
 
 use rustneat::Organism;
 
-pub struct TrainingAgent<'o> {
+pub struct RustNeatAgent<'o> {
     organism: &'o mut Organism,
     input: [f64; 33],
     output: Vec<f64>,
     indexed_output: [(usize, f64); 16],
 }
 
-impl<'o> TrainingAgent<'o> {
+impl<'o> RustNeatAgent<'o> {
     pub fn new(organism: &'o mut Organism) -> Self {
         Self {
             organism,
@@ -22,7 +22,7 @@ impl<'o> TrainingAgent<'o> {
     }
 }
 
-impl Agent for TrainingAgent<'_> {
+impl Agent for RustNeatAgent<'_> {
     fn pick_index(&mut self, game: &Game) -> usize {
         let (player, opponent) = if game.turn() == Player1 {
             (&game.player1, &game.player2)

@@ -5,7 +5,7 @@ mod random_agent;
 pub use random_agent::RandomAgent;
 
 mod training_rustneat_agent;
-pub use training_rustneat_agent::TrainingAgent;
+pub use training_rustneat_agent::RustNeatAgent;
 
 mod training_radiate_agent;
 pub use training_radiate_agent::RadiateAgent;

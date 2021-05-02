@@ -1,5 +1,5 @@
 mod bao;
-use bao::{Direction, Game, HumanAgent, Mode, Player, RadiateAgent, RandomAgent, TrainingAgent};
+use bao::{Direction, Game, HumanAgent, Mode, Player, RadiateAgent, RandomAgent, RustNeatAgent};
 
 use radiate::prelude::*;
 use radiate::{Neat, NeatEnvironment, Problem};
@@ -54,7 +54,7 @@ impl Environment for GameEnvironment {
             )
             .play(
                 &mut RandomAgent::default(),
-                &mut TrainingAgent::new(organism),
+                &mut RustNeatAgent::new(organism),
             )
             .winner
             .tag()

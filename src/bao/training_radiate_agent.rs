@@ -1,38 +1,28 @@
-use super::{Agent, Direction, Game, Turn::*};
+use super::{Agent, Game, Turn::*};
 
 use std::iter;
 
-use rustneat::Organism;
+use radiate::Neat;
 
-impl Direction {
-    #[inline(always)]
-    fn input_enc(&self) -> f64 {
-        match self {
-            Direction::CW => 0.0,
-            Direction::CCW => 1.0,
-        }
-    }
+pub struct RadiateAgent<'o> {
+    model: &'o mut Neat,
+    input: [f32; 33],
+    output: Vec<f32>,
+    indexed_output: [(usize, f32); 16],
 }
 
-pub struct TrainingAgent<'o> {
-    organism: &'o mut Organism,
-    input: [f64; 33],
-    output: Vec<f64>,
-    indexed_output: [(usize, f64); 16],
-}
-
-impl<'o> TrainingAgent<'o> {
-    pub fn new(organism: &'o mut Organism) -> Self {
+impl<'o> RadiateAgent<'o> {
+    pub fn new(model: &'o mut Neat) -> Self {
         Self {
-            organism,
+            model,
             input: [0.0; 33],
-            output: vec![0.0; 16], // must be a vec because of activate()
+            output: vec![0.0; 16],
             indexed_output: [(0, 0.0); 16],
         }
     }
 }
 
-impl Agent for TrainingAgent<'_> {
+impl Agent for RadiateAgent<'_> {
     fn pick_index(&mut self, game: &Game) -> usize {
         let (player, opponent) = if game.turn() == Player1 {
             (&game.player1, &game.player2)
@@ -44,14 +34,17 @@ impl Agent for TrainingAgent<'_> {
             .board_half
             .iter()
             .chain(opponent.board_half.iter())
-            .map(|&val| val as f64)
+            .map(|&val| val as f32)
             .chain(iter::once(game.direction.input_enc()))
             .zip(&mut self.input[..])
         {
             *dst = src;
         }
 
-        self.organism.activate(&self.input, &mut self.output);
+        self.output = self
+            .model
+            .forward(&self.input.to_vec())
+            .expect("No output?");
 
         for (src, dst) in self
             .output

@@ -4,8 +4,11 @@ pub use human_agent::HumanAgent;
 mod random_agent;
 pub use random_agent::RandomAgent;
 
-mod training_agent;
-pub use training_agent::TrainingAgent;
+mod training_rustneat_agent;
+pub use training_rustneat_agent::TrainingAgent;
+
+mod training_radiate_agent;
+pub use training_radiate_agent::RadiateAgent;
 
 #[derive(PartialEq, Eq)]
 enum Turn {
@@ -26,6 +29,16 @@ enum MoveResult {
 pub enum Direction {
     CW,
     CCW,
+}
+
+impl Direction {
+    #[inline(always)]
+    fn input_enc(&self) -> f32 {
+        match self {
+            Direction::CW => 0.0,
+            Direction::CCW => 1.0,
+        }
+    }
 }
 
 impl Direction {

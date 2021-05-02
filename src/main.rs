@@ -1,6 +1,8 @@
 mod bao;
-use bao::{RandomAgent, HumanAgent, TrainingAgent, Direction, Game, Mode, Player};
+use bao::{Direction, Game, HumanAgent, Mode, Player, RadiateAgent, RandomAgent, TrainingAgent};
 
+use radiate::prelude::*;
+use radiate::{Neat, NeatEnvironment, Problem};
 use rustneat::{Environment, Organism, Population};
 
 fn random_ai_game() {
@@ -41,28 +43,33 @@ struct GameEnvironment;
 
 impl Environment for GameEnvironment {
     fn test(&self, organism: &mut Organism) -> f64 {
-        if Game::new(
-            Direction::CW,
-            Mode::Easy,
-            Player::new("Player 1", 0),
-            Player::new("Player 2", 1),
-        )
-        .play(
-            &mut RandomAgent::default(),
-            &mut TrainingAgent::new(organism),
-        )
-        .winner
-        .tag()
-            == 1
-        {
-            1.0
-        } else {
-            0.0
+        let mut fitness = 0.0;
+
+        for _ in 0..100 {
+            fitness += if Game::new(
+                Direction::CW,
+                Mode::Easy,
+                Player::new("Player 1", 0),
+                Player::new("Player 2", 1),
+            )
+            .play(
+                &mut RandomAgent::default(),
+                &mut TrainingAgent::new(organism),
+            )
+            .winner
+            .tag()
+                == 1
+            {
+                1.0
+            } else {
+                0.0
+            }
         }
+        fitness
     }
 }
 
-fn train() {
+fn train_rustneat() {
     let mut population = Population::create_population(100);
     let mut environment = GameEnvironment;
     let mut champion: Option<Organism> = None;
@@ -72,13 +79,91 @@ fn train() {
         population.evaluate_in(&mut environment);
         for organism in &population.get_organisms() {
             println!("Fitness: {}", organism.fitness);
-            if organism.fitness > 75.0 {
+            if organism.fitness > 90.0 {
                 champion = Some(organism.clone());
             }
         }
     }
 
     println!("{:?}", champion.unwrap().genome);
+}
+
+impl Problem<Neat> for Game {
+    fn empty() -> Self {
+        Game::new(
+            Direction::CW,
+            Mode::Easy,
+            Player::new("Player 1", 0),
+            Player::new("Player 2", 1),
+        )
+    }
+
+    fn solve(&self, member: &mut Neat) -> f32 {
+        let mut fitness = 0.0;
+
+        for _ in 0..100 {
+            fitness += if Game::new(
+                Direction::CW,
+                Mode::Easy,
+                Player::new("Player 1", 0),
+                Player::new("Player 2", 1),
+            )
+            .play(&mut RandomAgent::default(), &mut RadiateAgent::new(member))
+            .winner
+            .tag()
+                == 1
+            {
+                1.0
+            } else {
+                0.0
+            }
+        }
+        fitness
+    }
+}
+
+fn train_radiate() {
+    let mut neat_env = NeatEnvironment::new()
+        .set_input_size(33)
+        .set_output_size(16)
+        .set_weight_mutate_rate(0.8)
+        .set_edit_weights(0.1)
+        .set_weight_perturb(1.5)
+        .set_new_node_rate(0.08)
+        .set_new_edge_rate(0.08)
+        .set_reactivate(0.2)
+        .set_activation_functions(vec![
+            Activation::Sigmoid,
+            Activation::Relu,
+            Activation::LeakyRelu(0.02),
+        ]);
+
+    let starting_net = Neat::base(&mut neat_env);
+    let num_evolve = 250;
+
+    let (solution, _) = radiate::Population::<Neat, NeatEnvironment, Game>::new()
+        .constrain(neat_env)
+        .size(200)
+        .populate_clone(starting_net)
+        .debug(true)
+        .dynamic_distance(true)
+        .configure(Config {
+            inbreed_rate: 0.001,
+            crossover_rate: 0.75,
+            distance: 0.5,
+            species_target: 5,
+        })
+        .stagnation(15, vec![Genocide::KillWorst(0.9)])
+        .run(|_, fit, num| {
+            println!("Generation: {} score: {}", num, fit);
+            num == num_evolve || fit > 90.0
+        })
+        .expect("radiate could not run or crashed");
+
+    println!("{:#?}", solution);
+    solution
+        .save("radiate_ai.json")
+        .expect("Could not write ai file");
 }
 
 fn main() {
@@ -92,7 +177,11 @@ fn main() {
         human_game();
     }
 
-    if param == "train" {
-        train();
+    if param == "rustneat" {
+        train_rustneat();
+    }
+
+    if param == "radiate" {
+        train_radiate();
     }
 }

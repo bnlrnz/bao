@@ -10,6 +10,9 @@ pub use training_rustneat_agent::RustNeatAgent;
 mod training_radiate_agent;
 pub use training_radiate_agent::RadiateAgent;
 
+mod maximize_agent;
+pub use maximize_agent::MaximizeAgent;
+
 #[derive(PartialEq, Eq)]
 enum Turn {
     Player1,
@@ -19,9 +22,9 @@ enum Turn {
 use Turn::*;
 
 enum MoveResult {
-    None,
-    Lost,
-    Won,
+    None(u8),
+    Lost(u8),
+    Won(u8),
 }
 
 #[allow(unused)]
@@ -71,6 +74,7 @@ pub enum Mode {
     Easy,   // just the inner row must be empty to win
 }
 
+#[derive(Clone)]
 pub struct Player {
     name: String,
     tag: usize,
@@ -156,10 +160,10 @@ impl Game {
             };
 
             match (move_result, self.turn()) {
-                (MoveResult::Won, Player1) | (MoveResult::Lost, Player2) => {
+                (MoveResult::Won(_), Player1) | (MoveResult::Lost(_), Player2) => {
                     break (self.player1, self.player2)
                 }
-                (MoveResult::Lost, Player1) | (MoveResult::Won, Player2) => {
+                (MoveResult::Lost(_), Player1) | (MoveResult::Won(_), Player2) => {
                     break (self.player2, self.player1)
                 }
                 _ => self.turn_count += 1,
@@ -185,7 +189,7 @@ impl Game {
     fn make_move<A: Agent>(&mut self, agent: &mut A) -> MoveResult {
         let mut index = agent.pick_index(self);
 
-        let (player, opponent) = if self.turn() == Player1 {
+        let (mut player, mut opponent) = if self.turn() == Player1 {
             (&mut self.player1, &mut self.player2)
         } else {
             (&mut self.player2, &mut self.player1)
@@ -196,10 +200,10 @@ impl Game {
             "Invalid index"
         );
 
+        let mut total_steal = 0;
+
         let mut hand = player.board_half[index];
         player.board_half[index] = 0;
-
-        //println!("{} choose index {}", player.name, index);
 
         while hand > 0 {
             index = self.direction.next_index(index);
@@ -217,6 +221,7 @@ impl Game {
                     hand += match self.mode {
                         Mode::Easy => {
                             let steal = opponent.board_half[opponent_index];
+                            total_steal += steal;
                             opponent.board_half[opponent_index] = 0;
                             steal
                         }
@@ -224,6 +229,7 @@ impl Game {
                             let opponent_2nd_index = 15 - opponent_index;
                             let steal = opponent.board_half[opponent_index]
                                 + opponent.board_half[opponent_2nd_index];
+                            total_steal += steal;
                             opponent.board_half[opponent_index] = 0;
                             opponent.board_half[opponent_2nd_index] = 0;
                             steal
@@ -232,7 +238,7 @@ impl Game {
 
                     // check win condition after steal!
                     if opponent.has_lost(self.mode) {
-                        return MoveResult::Won;
+                        return MoveResult::Won(total_steal);
                     }
                 }
             }
@@ -240,9 +246,62 @@ impl Game {
 
         // check lose condition after move!
         if player.has_lost(self.mode) {
-            MoveResult::Lost
+            MoveResult::Lost(total_steal)
         } else {
-            MoveResult::None
+            MoveResult::None(total_steal)
         }
+    }
+
+    fn steal_dry_run(
+        mut index: usize,
+        direction: Direction,
+        mode: Mode,
+        mut player: &mut Player,
+        mut opponent: &mut Player,
+    ) -> MoveResult {
+        let mut total_steal = 0;
+
+        let mut hand = player.board_half[index];
+        player.board_half[index] = 0;
+
+        while hand > 0 {
+            index = direction.next_index(index);
+            hand -= 1;
+            player.board_half[index] += 1;
+
+            if hand == 0 && player.board_half[index] >= 2 {
+                hand = player.board_half[index];
+                player.board_half[index] = 0;
+
+                // steal from opponent
+                if (8..=15).contains(&index) {
+                    let opponent_index = (15 - index) + 8;
+
+                    hand += match mode {
+                        Mode::Easy => {
+                            let steal = opponent.board_half[opponent_index];
+                            total_steal += steal;
+                            opponent.board_half[opponent_index] = 0;
+                            steal
+                        }
+                        Mode::Normal => {
+                            let opponent_2nd_index = 15 - opponent_index;
+                            let steal = opponent.board_half[opponent_index]
+                                + opponent.board_half[opponent_2nd_index];
+                            total_steal += steal;
+                            opponent.board_half[opponent_index] = 0;
+                            opponent.board_half[opponent_2nd_index] = 0;
+                            steal
+                        }
+                    };
+
+                    // check win condition after steal!
+                    if opponent.has_lost(mode) {
+                        return MoveResult::None(total_steal);
+                    }
+                }
+            }
+        }
+        MoveResult::None(total_steal)
     }
 }

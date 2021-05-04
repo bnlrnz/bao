@@ -1,5 +1,5 @@
 mod bao;
-use bao::{Direction, Game, HumanAgent, Mode, Player, RadiateAgent, RandomAgent, RustNeatAgent};
+use bao::{Direction, Game, HumanAgent, MaximizeAgent, Mode, Player, RadiateAgent, RandomAgent, RustNeatAgent};
 
 use radiate::prelude::*;
 use radiate::{Neat, NeatEnvironment, Problem};
@@ -8,7 +8,7 @@ use rustneat::{Environment, Organism, Population};
 fn random_ai_game() {
     let mut results = [0; 2];
 
-    for _ in 0..100000 {
+    for _ in 0..1000000 {
         let winner_tag = Game::new(
             Direction::CW,
             Mode::Easy,
@@ -53,7 +53,7 @@ impl Environment for GameEnvironment {
                 Player::new("Player 2", 1),
             )
             .play(
-                &mut RandomAgent::default(),
+                &mut MaximizeAgent::default(),
                 &mut RustNeatAgent::new(organism),
             )
             .winner
@@ -101,14 +101,15 @@ impl Problem<Neat> for Game {
     fn solve(&self, member: &mut Neat) -> f32 {
         let mut fitness = 0.0;
 
-        for _ in 0..100 {
+        let runs = 100;
+        for _ in 0..runs {
             fitness += if Game::new(
                 Direction::CW,
                 Mode::Easy,
                 Player::new("Player 1", 0),
                 Player::new("Player 2", 1),
             )
-            .play(&mut RandomAgent::default(), &mut RadiateAgent::new(member))
+            .play(&mut MaximizeAgent::default(), &mut RadiateAgent::new(member))
             .winner
             .tag()
                 == 1
@@ -118,7 +119,7 @@ impl Problem<Neat> for Game {
                 0.0
             }
         }
-        fitness
+        fitness / runs as f32
     }
 }
 
@@ -126,41 +127,41 @@ fn train_radiate() {
     let mut neat_env = NeatEnvironment::new()
         .set_input_size(33)
         .set_output_size(16)
-        .set_weight_mutate_rate(0.8)
-        .set_edit_weights(0.1)
-        .set_weight_perturb(1.5)
-        .set_new_node_rate(0.08)
-        .set_new_edge_rate(0.08)
-        .set_reactivate(0.2)
+        .set_weight_mutate_rate(0.5)
+        .set_edit_weights(0.5)
+        .set_weight_perturb(1.0)
+        .set_new_node_rate(0.5)
+        .set_new_edge_rate(0.5)
+        .set_reactivate(0.5)
         .set_activation_functions(vec![
-            Activation::Sigmoid,
+            Activation::Tanh,
             Activation::Relu,
-            Activation::LeakyRelu(0.02),
+            Activation::Sigmoid,
         ]);
 
     let starting_net = Neat::base(&mut neat_env);
-    let num_evolve = 250;
-
     let (solution, _) = radiate::Population::<Neat, NeatEnvironment, Game>::new()
         .constrain(neat_env)
-        .size(200)
+        .size(250)
         .populate_clone(starting_net)
         .debug(true)
         .dynamic_distance(true)
         .configure(Config {
             inbreed_rate: 0.001,
-            crossover_rate: 0.75,
-            distance: 0.5,
+            crossover_rate: 0.9,
+            distance: 0.75,
             species_target: 5,
         })
-        .stagnation(15, vec![Genocide::KillWorst(0.9)])
+        .stagnation(20, vec![Genocide::KillWorst(0.9)])
+        .survivor_criteria(radiate::SurvivalCriteria::Fittest)
+        .parental_criteria(radiate::ParentalCriteria::BestInSpecies)
         .run(|_, fit, num| {
             println!("Generation: {} score: {}", num, fit);
-            num == num_evolve || fit > 90.0
+            fit > 0.99
         })
         .expect("radiate could not run or crashed");
 
-    println!("{:#?}", solution);
+    //println!("{:#?}", solution);
     solution
         .save("radiate_ai.json")
         .expect("Could not write ai file");

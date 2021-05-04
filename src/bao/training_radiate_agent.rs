@@ -60,10 +60,13 @@ impl Agent for RadiateAgent<'_> {
             .sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).expect("NaN?"));
 
         // Select the best index that is valid.
-        self.indexed_output
+        let index = self
+            .indexed_output
             .iter()
             .find(|&&(index, _)| player.is_valid_index(index))
             .expect("No valid index?")
-            .0
+            .0;
+
+        index
     }
 }

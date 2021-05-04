@@ -1,5 +1,8 @@
 mod bao;
-use bao::{Direction, Game, HumanAgent, MaximizeAgent, Mode, Player, RadiateAgent, RandomAgent, RustNeatAgent};
+use bao::{
+    Direction, Game, HumanAgent, MaximizeAgent, Mode, Player, RadiateAgent, RandomAgent,
+    RustNeatAgent,
+};
 
 use radiate::prelude::*;
 use radiate::{Neat, NeatEnvironment, Problem};
@@ -116,14 +119,7 @@ impl Problem<Neat> for Game {
             // println!("{:?} won!", result.winner);
             // println!("{:?} lost!", result.loser);
             // println!("=================");
-            fitness += if result.winner.tag() == 1
-            {
-                1.0
-            }
-            else
-            {
-                -1.0
-            }
+            fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 }
         }
 
         fitness / runs as f32
@@ -164,10 +160,10 @@ fn train_radiate() {
         .parental_criteria(radiate::ParentalCriteria::BestInSpecies)
         .run(|_, fit, num| {
             let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("log.txt")
-            .unwrap();
+                .create(true)
+                .append(true)
+                .open("log.txt")
+                .unwrap();
             writeln!(file, "Generation: {} score: {}", num, fit).expect("could not write log");
             fit > 0.95
         })

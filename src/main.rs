@@ -5,6 +5,9 @@ use radiate::prelude::*;
 use radiate::{Neat, NeatEnvironment, Problem};
 use rustneat::{Environment, Organism, Population};
 
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+
 fn random_ai_game() {
     let mut results = [0; 2];
 
@@ -103,22 +106,26 @@ impl Problem<Neat> for Game {
 
         let runs = 100;
         for _ in 0..runs {
-            fitness += if Game::new(
+            let result = Game::new(
                 Direction::CW,
                 Mode::Easy,
                 Player::new("Player 1", 0),
                 Player::new("Player 2", 1),
             )
-            .play(&mut MaximizeAgent::default(), &mut RadiateAgent::new(member))
-            .winner
-            .tag()
-                == 1
+            .play(&mut RandomAgent::default(), &mut RadiateAgent::new(member));
+            // println!("{:?} won!", result.winner);
+            // println!("{:?} lost!", result.loser);
+            // println!("=================");
+            fitness += if result.winner.tag() == 1
             {
                 1.0
-            } else {
-                0.0
+            }
+            else
+            {
+                -1.0
             }
         }
+
         fitness / runs as f32
     }
 }
@@ -142,7 +149,7 @@ fn train_radiate() {
     let starting_net = Neat::base(&mut neat_env);
     let (solution, _) = radiate::Population::<Neat, NeatEnvironment, Game>::new()
         .constrain(neat_env)
-        .size(250)
+        .size(500)
         .populate_clone(starting_net)
         .debug(true)
         .dynamic_distance(true)
@@ -156,8 +163,13 @@ fn train_radiate() {
         .survivor_criteria(radiate::SurvivalCriteria::Fittest)
         .parental_criteria(radiate::ParentalCriteria::BestInSpecies)
         .run(|_, fit, num| {
-            println!("Generation: {} score: {}", num, fit);
-            fit > 0.99
+            let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("log.txt")
+            .unwrap();
+            writeln!(file, "Generation: {} score: {}", num, fit).expect("could not write log");
+            fit > 0.95
         })
         .expect("radiate could not run or crashed");
 

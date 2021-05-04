@@ -74,7 +74,7 @@ pub enum Mode {
     Easy,   // just the inner row must be empty to win
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Player {
     name: String,
     tag: usize,
@@ -113,7 +113,7 @@ impl Player {
         }
 
         // If this is easy mode and the inner row is empty: lost
-        if (mode == Mode::Easy) && self.board_half.iter().skip(8).all(|&bowl| bowl < 2) {
+        if (mode == Mode::Easy) && self.board_half.iter().skip(8).all(|&bowl| bowl == 0) {
             return true;
         }
 
@@ -297,7 +297,8 @@ impl Game {
 
                     // check win condition after steal!
                     if opponent.has_lost(mode) {
-                        return MoveResult::None(total_steal);
+                        // always favour the winning move over the max steal move
+                        return MoveResult::None(99);
                     }
                 }
             }

@@ -1,8 +1,5 @@
 mod bao;
-use bao::{
-    Direction, Game, HumanAgent, MaximizeAgent, Mode, Player, RadiateAgent, RandomAgent,
-    RustNeatAgent,
-};
+use bao::{Direction, Game, HumanAgent, MaximizeAgent, Mode, Player, RadiateAgent, RandomAgent, RustNeatAgent};
 
 use radiate::prelude::*;
 use radiate::{Neat, NeatEnvironment, Problem};
@@ -13,7 +10,6 @@ use std::io::prelude::*;
 
 fn random_ai_game() {
     let mut results = [0; 2];
-
     for _ in 0..1000000 {
         let winner_tag = Game::new(
             Direction::CW,
@@ -105,24 +101,48 @@ impl Problem<Neat> for Game {
     }
 
     fn solve(&self, member: &mut Neat) -> f32 {
+        let mut neat = Neat::load("radiate_ai.json").expect("Could not load ai file");
+
         let mut fitness = 0.0;
 
         let runs = 100;
         for _ in 0..runs {
+            let mut radiate_agent = RadiateAgent::new(member);
             let result = Game::new(
                 Direction::CW,
                 Mode::Easy,
                 Player::new("Player 1", 0),
                 Player::new("Player 2", 1),
             )
-            .play(&mut RandomAgent::default(), &mut RadiateAgent::new(member));
+            .play(&mut MaximizeAgent::default(), &mut radiate_agent);
+            //  println!("{:?} won!", result.winner);
+            //  println!("{:?} lost!", result.loser);
+            //  println!("=================");
+             fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
+            let result = Game::new(
+                Direction::CW,
+                Mode::Easy,
+                Player::new("Player 1", 0),
+                Player::new("Player 2", 1),
+            )
+            .play(&mut RadiateAgent::new(&mut neat), &mut radiate_agent);
             // println!("{:?} won!", result.winner);
             // println!("{:?} lost!", result.loser);
             // println!("=================");
-            fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 }
+            fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
+            let result = Game::new(
+                Direction::CW,
+                Mode::Easy,
+                Player::new("Player 1", 0),
+                Player::new("Player 2", 1),
+            )
+            .play(&mut RandomAgent::default(), &mut radiate_agent);
+            // println!("{:?} won!", result.winner);
+            // println!("{:?} lost!", result.loser);
+            // println!("=================");
+            fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
         }
-
-        fitness / runs as f32
+        fitness / (runs*3) as f32
     }
 }
 
@@ -142,10 +162,11 @@ fn train_radiate() {
             Activation::Sigmoid,
         ]);
 
+    let target_gen = 500;
     let starting_net = Neat::base(&mut neat_env);
     let (solution, _) = radiate::Population::<Neat, NeatEnvironment, Game>::new()
         .constrain(neat_env)
-        .size(500)
+        .size(200)
         .populate_clone(starting_net)
         .debug(true)
         .dynamic_distance(true)
@@ -157,7 +178,7 @@ fn train_radiate() {
         })
         .stagnation(20, vec![Genocide::KillWorst(0.9)])
         .survivor_criteria(radiate::SurvivalCriteria::Fittest)
-        .parental_criteria(radiate::ParentalCriteria::BestInSpecies)
+        .parental_criteria(radiate::ParentalCriteria::BiasedRandom)
         .run(|_, fit, num| {
             let mut file = OpenOptions::new()
                 .create(true)
@@ -165,13 +186,13 @@ fn train_radiate() {
                 .open("log.txt")
                 .unwrap();
             writeln!(file, "Generation: {} score: {}", num, fit).expect("could not write log");
-            fit > 0.95
+            /*fit > 0.95 ||*/ num == target_gen
         })
         .expect("radiate could not run or crashed");
 
     //println!("{:#?}", solution);
     solution
-        .save("radiate_ai.json")
+        .save("radiate_ai_2.json")
         .expect("Could not write ai file");
 }
 

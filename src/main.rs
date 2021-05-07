@@ -1,23 +1,26 @@
 mod bao;
-use bao::{Direction, Game, HumanAgent, MaximizeAgent, Mode, Player, RadiateAgent, RandomAgent, RustNeatAgent};
+use bao::{Direction, Game, HumanAgent, MaximizeAgent, Mode, Player, RadiateAgent, RandomAgent};
 
 use radiate::prelude::*;
 use radiate::{Neat, NeatEnvironment, Problem};
-use rustneat::{Environment, Organism, Population};
 
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 
 fn random_ai_game() {
+    let mut neat = Neat::load("radiate_ai_final2.json").expect("Could not load ai file");
+
+    let mut neat2 = Neat::load("radiate_ai_final.json").expect("Could not load ai file");
+
     let mut results = [0; 2];
-    for _ in 0..1000000 {
+    for _ in 0..100000 {
         let winner_tag = Game::new(
             Direction::CW,
             Mode::Easy,
             Player::new("Player 1", 0),
             Player::new("Player 2", 1),
         )
-        .play(&mut RandomAgent::default(), &mut RandomAgent::default())
+        .play(&mut RadiateAgent::new(&mut neat2), &mut RadiateAgent::new(&mut neat))
         .winner
         .tag();
 
@@ -41,55 +44,6 @@ fn human_game() {
     println!("Winner: {}", winner.name());
 }
 
-struct GameEnvironment;
-
-impl Environment for GameEnvironment {
-    fn test(&self, organism: &mut Organism) -> f64 {
-        let mut fitness = 0.0;
-
-        for _ in 0..100 {
-            fitness += if Game::new(
-                Direction::CW,
-                Mode::Easy,
-                Player::new("Player 1", 0),
-                Player::new("Player 2", 1),
-            )
-            .play(
-                &mut MaximizeAgent::default(),
-                &mut RustNeatAgent::new(organism),
-            )
-            .winner
-            .tag()
-                == 1
-            {
-                1.0
-            } else {
-                0.0
-            }
-        }
-        fitness
-    }
-}
-
-fn train_rustneat() {
-    let mut population = Population::create_population(100);
-    let mut environment = GameEnvironment;
-    let mut champion: Option<Organism> = None;
-
-    while champion.is_none() {
-        population.evolve();
-        population.evaluate_in(&mut environment);
-        for organism in &population.get_organisms() {
-            println!("Fitness: {}", organism.fitness);
-            if organism.fitness > 90.0 {
-                champion = Some(organism.clone());
-            }
-        }
-    }
-
-    println!("{:?}", champion.unwrap().genome);
-}
-
 impl Problem<Neat> for Game {
     fn empty() -> Self {
         Game::new(
@@ -101,7 +55,7 @@ impl Problem<Neat> for Game {
     }
 
     fn solve(&self, member: &mut Neat) -> f32 {
-        let mut neat = Neat::load("radiate_ai.json").expect("Could not load ai file");
+        let mut neat = Neat::load("radiate_ai_final2.json").expect("Could not load ai file");
 
         let mut fitness = 0.0;
 
@@ -118,7 +72,20 @@ impl Problem<Neat> for Game {
             //  println!("{:?} won!", result.winner);
             //  println!("{:?} lost!", result.loser);
             //  println!("=================");
-             fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
+            fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
+            let result = Game::new(
+                Direction::CW,
+                Mode::Easy,
+                Player::new("Player 1", 0),
+                Player::new("Player 2", 1),
+            )
+            .play(&mut radiate_agent, &mut MaximizeAgent::default());
+            //  println!("{:?} won!", result.winner);
+            //  println!("{:?} lost!", result.loser);
+            //  println!("=================");
+            fitness += if result.winner.tag() == 0 { 1.0 } else { -1.0 };
+
+
             let result = Game::new(
                 Direction::CW,
                 Mode::Easy,
@@ -136,13 +103,38 @@ impl Problem<Neat> for Game {
                 Player::new("Player 1", 0),
                 Player::new("Player 2", 1),
             )
+            .play( &mut radiate_agent, &mut RadiateAgent::new(&mut neat));
+            // println!("{:?} won!", result.winner);
+            // println!("{:?} lost!", result.loser);
+            // println!("=================");
+            fitness += if result.winner.tag() == 0 { 1.0 } else { -1.0 };
+
+
+
+            let result = Game::new(
+                Direction::CW,
+                Mode::Easy,
+                Player::new("Player 1", 0),
+                Player::new("Player 2", 1),
+            )
             .play(&mut RandomAgent::default(), &mut radiate_agent);
             // println!("{:?} won!", result.winner);
             // println!("{:?} lost!", result.loser);
             // println!("=================");
             fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
+            let result = Game::new(
+                Direction::CW,
+                Mode::Easy,
+                Player::new("Player 1", 0),
+                Player::new("Player 2", 1),
+            )
+            .play(&mut radiate_agent, &mut RandomAgent::default());
+            // println!("{:?} won!", result.winner);
+            // println!("{:?} lost!", result.loser);
+            // println!("=================");
+            fitness += if result.winner.tag() == 0 { 1.0 } else { -1.0 };
         }
-        fitness / (runs*3) as f32
+        fitness / (runs * 6) as f32
     }
 }
 
@@ -166,7 +158,7 @@ fn train_radiate() {
     let starting_net = Neat::base(&mut neat_env);
     let (solution, _) = radiate::Population::<Neat, NeatEnvironment, Game>::new()
         .constrain(neat_env)
-        .size(200)
+        .size(100)
         .populate_clone(starting_net)
         .debug(true)
         .dynamic_distance(true)
@@ -186,18 +178,22 @@ fn train_radiate() {
                 .open("log.txt")
                 .unwrap();
             writeln!(file, "Generation: {} score: {}", num, fit).expect("could not write log");
-            /*fit > 0.95 ||*/ num == target_gen
+            fit > 0.90 || num == target_gen
         })
         .expect("radiate could not run or crashed");
 
     //println!("{:#?}", solution);
     solution
-        .save("radiate_ai_2.json")
+        .save("radiate_ai_v_ai.json")
         .expect("Could not write ai file");
 }
 
 fn main() {
     let param: String = std::env::args().skip(1).take(1).collect();
+
+    if param == "radiate" {
+        train_radiate();
+    }
 
     if param == "random" {
         random_ai_game();
@@ -205,13 +201,5 @@ fn main() {
 
     if param == "human" {
         human_game();
-    }
-
-    if param == "rustneat" {
-        train_rustneat();
-    }
-
-    if param == "radiate" {
-        train_radiate();
     }
 }

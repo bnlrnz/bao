@@ -8,9 +8,7 @@ use std::fs::OpenOptions;
 use std::io::prelude::*;
 
 fn random_ai_game() {
-    let mut neat = Neat::load("radiate_ai_final2.json").expect("Could not load ai file");
-
-    let mut neat2 = Neat::load("radiate_ai_final.json").expect("Could not load ai file");
+    let mut neat = Neat::load("radiate_ai_v_ai.json").expect("Could not load ai file");
 
     let mut results = [0; 2];
     for _ in 0..100000 {
@@ -20,7 +18,7 @@ fn random_ai_game() {
             Player::new("Player 1", 0),
             Player::new("Player 2", 1),
         )
-        .play(&mut RadiateAgent::new(&mut neat2), &mut RadiateAgent::new(&mut neat))
+        .play(&mut RandomAgent::default(), &mut RadiateAgent::new(&mut neat))
         .winner
         .tag();
 
@@ -55,59 +53,59 @@ impl Problem<Neat> for Game {
     }
 
     fn solve(&self, member: &mut Neat) -> f32 {
-        let mut neat = Neat::load("radiate_ai_final2.json").expect("Could not load ai file");
+        //let mut neat = Neat::load("radiate_ai_final2.json").expect("Could not load ai file");
 
         let mut fitness = 0.0;
 
         let runs = 100;
         for _ in 0..runs {
             let mut radiate_agent = RadiateAgent::new(member);
-            let result = Game::new(
-                Direction::CW,
-                Mode::Easy,
-                Player::new("Player 1", 0),
-                Player::new("Player 2", 1),
-            )
-            .play(&mut MaximizeAgent::default(), &mut radiate_agent);
-            //  println!("{:?} won!", result.winner);
-            //  println!("{:?} lost!", result.loser);
-            //  println!("=================");
-            fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
-            let result = Game::new(
-                Direction::CW,
-                Mode::Easy,
-                Player::new("Player 1", 0),
-                Player::new("Player 2", 1),
-            )
-            .play(&mut radiate_agent, &mut MaximizeAgent::default());
-            //  println!("{:?} won!", result.winner);
-            //  println!("{:?} lost!", result.loser);
-            //  println!("=================");
-            fitness += if result.winner.tag() == 0 { 1.0 } else { -1.0 };
+            // let result = Game::new(
+            //     Direction::CW,
+            //     Mode::Easy,
+            //     Player::new("Player 1", 0),
+            //     Player::new("Player 2", 1),
+            // )
+            // .play(&mut MaximizeAgent::default(), &mut radiate_agent);
+            // //  println!("{:?} won!", result.winner);
+            // //  println!("{:?} lost!", result.loser);
+            // //  println!("=================");
+            // fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
+            // let result = Game::new(
+            //     Direction::CW,
+            //     Mode::Easy,
+            //     Player::new("Player 1", 0),
+            //     Player::new("Player 2", 1),
+            // )
+            // .play(&mut radiate_agent, &mut MaximizeAgent::default());
+            // //  println!("{:?} won!", result.winner);
+            // //  println!("{:?} lost!", result.loser);
+            // //  println!("=================");
+            // fitness += if result.winner.tag() == 0 { 1.0 } else { -1.0 };
 
 
-            let result = Game::new(
-                Direction::CW,
-                Mode::Easy,
-                Player::new("Player 1", 0),
-                Player::new("Player 2", 1),
-            )
-            .play(&mut RadiateAgent::new(&mut neat), &mut radiate_agent);
-            // println!("{:?} won!", result.winner);
-            // println!("{:?} lost!", result.loser);
-            // println!("=================");
-            fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
-            let result = Game::new(
-                Direction::CW,
-                Mode::Easy,
-                Player::new("Player 1", 0),
-                Player::new("Player 2", 1),
-            )
-            .play( &mut radiate_agent, &mut RadiateAgent::new(&mut neat));
-            // println!("{:?} won!", result.winner);
-            // println!("{:?} lost!", result.loser);
-            // println!("=================");
-            fitness += if result.winner.tag() == 0 { 1.0 } else { -1.0 };
+            // let result = Game::new(
+            //     Direction::CW,
+            //     Mode::Easy,
+            //     Player::new("Player 1", 0),
+            //     Player::new("Player 2", 1),
+            // )
+            // .play(&mut RadiateAgent::new(&mut neat), &mut radiate_agent);
+            // // println!("{:?} won!", result.winner);
+            // // println!("{:?} lost!", result.loser);
+            // // println!("=================");
+            // fitness += if result.winner.tag() == 1 { 1.0 } else { -1.0 };
+            // let result = Game::new(
+            //     Direction::CW,
+            //     Mode::Easy,
+            //     Player::new("Player 1", 0),
+            //     Player::new("Player 2", 1),
+            // )
+            // .play( &mut radiate_agent, &mut RadiateAgent::new(&mut neat));
+            // // println!("{:?} won!", result.winner);
+            // // println!("{:?} lost!", result.loser);
+            // // println!("=================");
+            // fitness += if result.winner.tag() == 0 { 1.0 } else { -1.0 };
 
 
 
@@ -134,7 +132,7 @@ impl Problem<Neat> for Game {
             // println!("=================");
             fitness += if result.winner.tag() == 0 { 1.0 } else { -1.0 };
         }
-        fitness / (runs * 6) as f32
+        fitness / (runs * 2) as f32
     }
 }
 
@@ -154,23 +152,26 @@ fn train_radiate() {
             Activation::Sigmoid,
         ]);
 
-    let target_gen = 500;
+    let mut neat = Neat::load("radiate_ai_final3.json").expect("Could not load ai file");
+
+
+    let target_gen = 5000;
     let starting_net = Neat::base(&mut neat_env);
     let (solution, _) = radiate::Population::<Neat, NeatEnvironment, Game>::new()
         .constrain(neat_env)
-        .size(100)
-        .populate_clone(starting_net)
+        .size(1000)
+        .populate_clone(neat)
         .debug(true)
         .dynamic_distance(true)
         .configure(Config {
             inbreed_rate: 0.001,
             crossover_rate: 0.9,
             distance: 0.75,
-            species_target: 5,
+            species_target: 15,
         })
         .stagnation(20, vec![Genocide::KillWorst(0.9)])
         .survivor_criteria(radiate::SurvivalCriteria::Fittest)
-        .parental_criteria(radiate::ParentalCriteria::BiasedRandom)
+        .parental_criteria(radiate::ParentalCriteria::BestInSpecies)
         .run(|_, fit, num| {
             let mut file = OpenOptions::new()
                 .create(true)
